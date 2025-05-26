@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "expo-redpark-serial": ["../src/index"],
+      "expo-redpark-serial/*": ["../src/*"]
+    }
+  }
+}
