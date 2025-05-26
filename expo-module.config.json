@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoRedparkSerialModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.redparkserial.ExpoRedparkSerialModule"]
+  }
+}
