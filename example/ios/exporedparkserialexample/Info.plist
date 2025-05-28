@@ -54,6 +54,12 @@
     <false/>
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleDefault</string>
+    <key>UISupportedExternalAccessoryProtocols</key>
+    <array>
+      <string>com.redpark.hobdb9v</string>
+      <string>com.redpark.ser45v</string>
+      <string>com.redpark.dex</string>
+    </array>
     <key>UISupportedInterfaceOrientations</key>
     <array>
       <string>UIInterfaceOrientationPortrait</string>

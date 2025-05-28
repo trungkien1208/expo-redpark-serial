@@ -17,7 +17,8 @@ Pod::Spec.new do |s|
   s.swift_version  = '5.4'
   s.source         = { git: 'https://github.com/trungkien1208/expo-redpark-serial.git' }
   s.static_framework = true
-
+  s.vendored_frameworks = 'RedparkSDK/RedSerial.xcframework'
+  s.frameworks = "ExternalAccessory"
   s.dependency 'ExpoModulesCore'
 
   # Swift/Objective-C compatibility
@@ -25,5 +26,5 @@ Pod::Spec.new do |s|
     'DEFINES_MODULE' => 'YES',
   }
 
-  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
+  s.source_files = "src/**/*.{h,m,mm,swift,hpp,cpp}"
 end

@@ -1,37 +1,77 @@
 import { useEvent } from 'expo';
-import ExpoRedparkSerial, { ExpoRedparkSerialView } from 'expo-redpark-serial';
-import { Button, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
+import ExpoRedparkSerial from 'expo-redpark-serial';
+import { getNETSPurchaseMessage } from './NetsTerminal.services';
+
 
 export default function App() {
-  const onChangePayload = useEvent(ExpoRedparkSerial, 'onChange');
+  const [isCableConnected, setIsCableConnected] = useState(false);
+  const dataReceivedEvent = useEvent(ExpoRedparkSerial, 'onDataReceived');
+  const dataOnCableStatusChanged = useEvent(ExpoRedparkSerial, 'onCableStatusChanged');
+  const [messageSent, setMessageSent] = useState('');
+  const handleCableConnected = () => {
+    setIsCableConnected(true);
+  };
+
+  const handleCableDisconnected = () => {
+    setIsCableConnected(false);
+  };
+
+  const sendData = async () => {
+    await ExpoRedparkSerial.sendDataAsync(messageSent);
+  };
+
+  const discovery = async () => {
+    console.log('Discovery');
+    const result = await ExpoRedparkSerial.manualStartDiscovery();
+    console.log('Discovery result:', result);
+    setIsCableConnected(result);
+  };
+
+  useEffect(() => {
+    async function checkCableConnection() {
+      console.log('Checking cable connection');
+      const isConnected = await ExpoRedparkSerial.isCableConnected();
+      console.log('Cable connection status:', isConnected);
+      setIsCableConnected(isConnected);
+    }
+
+
+    checkCableConnection();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container}>
         <Text style={styles.header}>Module API Example</Text>
-        <Group name="Constants">
-          <Text>{ExpoRedparkSerial.PI}</Text>
+        <Group name="Cable Status">
+          <Text>{JSON.stringify(isCableConnected)}</Text>
+          <Text>onCableStatusChanged: {JSON.stringify(dataOnCableStatusChanged)}</Text>
+          <Text>onDataReceived: {JSON.stringify(dataReceivedEvent)}</Text>
         </Group>
-        <Group name="Functions">
-          <Text>{ExpoRedparkSerial.hello()}</Text>
-        </Group>
-        <Group name="Async functions">
-          <Button
-            title="Set value"
-            onPress={async () => {
-              await ExpoRedparkSerial.setValueAsync('Hello from JS!');
-            }}
+        <Group name="Generate Message">
+          <TextInput
+            style={styles.input}
+            value={messageSent}
+            onChangeText={setMessageSent}
+            placeholder="Enter data to send"
           />
+          <Button title="Generate Data" onPress={() => {
+            setMessageSent(getNETSPurchaseMessage(20));
+          }} />
         </Group>
-        <Group name="Events">
-          <Text>{onChangePayload?.value}</Text>
+        <Group name="Data Sent">
+          <Button title="Send Data" onPress={sendData} />
         </Group>
-        <Group name="Views">
-          <ExpoRedparkSerialView
-            url="https://www.example.com"
-            onLoad={({ nativeEvent: { url } }) => console.log(`Loaded: ${url}`)}
-            style={styles.view}
-          />
+        <Group name="Data Received">
+          <Text>{JSON.stringify(dataReceivedEvent)}</Text>
+        </Group>
+        
+       <Group name="Discovery">
+       
+      
+          <Button title="Discovery" onPress={discovery} />
         </Group>
       </ScrollView>
     </SafeAreaView>
@@ -69,5 +109,12 @@ const styles = {
   view: {
     flex: 1,
     height: 200,
+  },
+  input: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 10,
+    padding: 10,
   },
 };

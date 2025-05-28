@@ -14,7 +14,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "expo.modules.redparkserial.example"
+      "bundleIdentifier": "expo.modules.redparkserial.example",
+      "appleTeamId": "HW3D594FP8",
+      "infoPlist": {
+        "UISupportedExternalAccessoryProtocols": [
+          "com.redpark.hobdb9v",
+          "com.redpark.ser45v",
+          "com.redpark.dex"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
