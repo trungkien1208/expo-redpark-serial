@@ -599,7 +599,7 @@ const parseMessageFields = (
 
 export const decodeTerminalResponseHex = (hexString: string) => {
   // Extract message body (skip length prefix and LRC suffix)
-  const messageBody = hexString.slice(4, -2);
+  const messageBody = hexString
 
   // Process the message body
   const upperCaseMessage = messageBody.toUpperCase();

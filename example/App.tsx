@@ -2,7 +2,7 @@ import { useEvent } from 'expo';
 import { useEffect, useState } from 'react';
 import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
 import ExpoRedparkSerial from 'expo-redpark-serial';
-import { getNETSPurchaseMessage } from './NetsTerminal.services';
+import { decodeTerminalResponseHex, getNETSPurchaseMessage } from './NetsTerminal.services';
 
 
 export default function App() {
@@ -65,12 +65,11 @@ export default function App() {
           <Button title="Send Data" onPress={sendData} />
         </Group>
         <Group name="Data Received">
-          <Text>{JSON.stringify(dataReceivedEvent)}</Text>
+          {Array.isArray(decodeTerminalResponseHex(dataReceivedEvent?.data ?? '')) && decodeTerminalResponseHex(dataReceivedEvent?.data ?? '').map((item) => (
+            <Text>{item.label}: {item.data}</Text>
+          ))}
         </Group>
-        
-       <Group name="Discovery">
-       
-      
+       <Group name="Discovery"> 
           <Button title="Discovery" onPress={discovery} />
         </Group>
       </ScrollView>
