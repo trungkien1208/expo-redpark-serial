@@ -18,6 +18,7 @@ export type ErrorEventPayload = {
 export type ExpoRedparkSerialModuleEvents = {
   onCableStatusChanged: (event: CableStatusChangedEventPayload) => void;
   onDataReceived: (event: DataReceivedEventPayload) => void;
+  
   onError: (event: ErrorEventPayload) => void;
 };
 
@@ -25,6 +26,7 @@ export type ExpoRedparkSerialModuleEvents = {
 export interface ExpoRedparkSerialNativeModule {
   isCableConnected: () => Promise<boolean>;
   sendDataAsync: (hexDataString: string) => Promise<boolean>;
+  sendDataAndAwaitFrameAsync: (hexDataString: string) => Promise<string>;
   manualStartDiscovery: () => Promise<boolean>;
   // Add other functions here if you re-add them to the Swift module, e.g.:
   // setBaudRate: (baudRate: number) => Promise<boolean>;

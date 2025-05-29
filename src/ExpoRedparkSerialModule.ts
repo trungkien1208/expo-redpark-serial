@@ -1,15 +1,19 @@
-import {NativeModule, requireNativeModule } from 'expo-modules-core';
+import { NativeModule, requireNativeModule } from 'expo-modules-core';
 
-import type { CableStatusChangedEventPayload, DataReceivedEventPayload, ErrorEventPayload, ExpoRedparkSerialNativeModule as ExpoRedparkSerialModuleInterface } from './ExpoRedparkSerial.types';
+import type { CableStatusChangedEventPayload, DataReceivedEventPayload, ErrorEventPayload } from './ExpoRedparkSerial.types';
 // ExpoRedparkSerialModuleEvents is also available from types if needed for explicit NativeEventEmitter typing elsewhere
 
-import { ExpoRedparkSerialModuleEvents } from './ExpoRedparkSerial.types';
 import { EventSubscription } from 'react-native';
+import { ExpoRedparkSerialModuleEvents } from './ExpoRedparkSerial.types';
 
 declare class ExpoRedparkSerialModule extends NativeModule<ExpoRedparkSerialModuleEvents> {
   onCableStatusChanged(listener: (event: CableStatusChangedEventPayload) => void): EventSubscription;
   onDataReceived(listener: (event: DataReceivedEventPayload) => void): EventSubscription;
   onError(listener: (event: ErrorEventPayload) => void): EventSubscription;
+  sendDataAndAwaitFrameAsync(hexDataString: string): Promise<string>;
+  manualStartDiscovery(): Promise<boolean>;
+  isCableConnected(): Promise<boolean>;
+  sendDataAsync(hexDataString: string): Promise<boolean>;
 }
 
 

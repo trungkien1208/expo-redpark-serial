@@ -10,6 +10,8 @@ public class ExpoRedparkSerialModule: Module {
   private var rxBuffer: [UInt8] = []
   private var readPending = false
   private var hasFiredInitialStatusEvent = false
+  private var sendDataResponsePromise: Promise?
+  private var sendDataResponseTimer: DispatchWorkItem?
 
   // MARK: - Framing constants
   private enum Frame {
@@ -74,35 +76,50 @@ public class ExpoRedparkSerialModule: Module {
       return connected
     }
 
-    AsyncFunction("sendDataAsync") { (hexDataString: String) -> Bool in
-      ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: >>> sendDataAsync CALLED. Current redSerialPort is \(self.redSerialPort == nil ? "nil" : "VALID", privacy: .public)")
-      ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: Sending data: \(hexDataString, privacy: .public)")
+    AsyncFunction("sendDataAsync") { (hexDataString: String, promise: Promise) in
+      ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: >>> sendDataAsync CALLED (Promise version).")
       guard let port = self.redSerialPort else {
         ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: Send failed - Port not connected.")
-        self.sendEvent("onError", ["message": "Port not connected or ready for sending."])
-        return false
+        promise.reject("PORT_NOT_CONNECTED", "Port not connected or ready for sending.")
+        return
       }
 
       guard let dataToSend = self.dataFromHexString(hexDataString) else {
         ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: Send failed - Invalid HEX string: \(hexDataString, privacy: .public)")
-        self.sendEvent("onError", ["message": "Invalid HEX string provided for sending."])
-        return false
+        promise.reject("INVALID_HEX_STRING", "Invalid HEX string provided for sending.")
+        return
       }
 
-      var success = false
-      let semaphore = DispatchSemaphore(value: 0)
-      ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: Attempting port.send...")
-      port.send(dataToSend) {
-        success = true
-        ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: port.send completion block executed.") // Use static log
-        semaphore.signal()
+      // Check if another sendDataAsync is already awaiting a response
+      if self.sendDataResponsePromise != nil {
+          ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: sendDataAsync called while another is already awaiting response.")
+          promise.reject("CONCURRENT_OPERATION", "Another sendDataAsync operation is already in progress and awaiting a response.")
+          return
+      }
+      
+      self.sendDataResponsePromise = promise
+      ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: Sending data: \(hexDataString, privacy: .public), awaiting response.")
+
+      port.send(dataToSend) { [weak self] in
+          guard let self = self else { return }
+          ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: port.send completion block executed (data handed to SDK).")
+          // This callback signifies that the Redpark SDK has accepted the data for sending.
+          // The actual response from the peripheral will come via handleFrame.
       }
 
-      _ = semaphore.wait(timeout: .now() + 2.0)
-      if !success {
-          ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: port.send did not complete in time or failed.")
+      // Set up a timeout for the response
+      let workItem = DispatchWorkItem { [weak self] in
+          guard let self = self else { return }
+          if let promiseToReject = self.sendDataResponsePromise {
+              ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAsync response timed out.")
+              promiseToReject.reject("RESPONSE_TIMEOUT", "Timeout waiting for response from device after sending data.")
+              self.sendDataResponsePromise = nil // Clear the promise
+              self.sendDataResponseTimer = nil // Clear the timer item
+          }
       }
-      return success
+      self.sendDataResponseTimer = workItem
+      // Wait for 5 seconds for a response. Adjust this timeout as needed.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 5.0, execute: workItem)
     }
 
     AsyncFunction("manualStartDiscovery") { () -> Bool in
@@ -146,11 +163,75 @@ public class ExpoRedparkSerialModule: Module {
                   ])
               } else {
                   // If redSerialPort is not nil here, handleDeviceDetected would have already sent the true status event.
-                  ExpoRedparkSerialModule.log.info("ExpoRedparkSerial: manualStartDiscovery - Timeout, port was connected in the interim (event likely sent by handleDeviceDetected). Additional event from manual discovery suppressed.")
+                  ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: manualStartDiscovery - Timeout, port was connected in the interim (event likely sent by handleDeviceDetected). Additional event from manual discovery suppressed.")
               }
           }
       }
       return true // Indicate the call was made and process initiated
+    }
+
+    AsyncFunction("sendDataAndAwaitFrameAsync") { (hexDataString: String, promise: Promise) in
+      ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: >>> sendDataAndAwaitFrameAsync CALLED.")
+      
+      guard let port = self.redSerialPort else {
+        ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: sendDataAndAwaitFrameAsync: Send failed - Port not connected.")
+        promise.reject("PORT_NOT_CONNECTED", "Port not connected for sendDataAndAwaitFrameAsync.")
+        return
+      }
+
+      guard let dataToSend = self.dataFromHexString(hexDataString) else {
+        ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: sendDataAndAwaitFrameAsync: Send failed - Invalid HEX string: \(hexDataString, privacy: .public)")
+        promise.reject("INVALID_HEX_STRING", "Invalid HEX string for sendDataAndAwaitFrameAsync.")
+        return
+      }
+
+      // Critical section: Ensure only one send-and-await operation is active
+      // This check uses the shared sendDataResponsePromise to ensure atomicity.
+      if self.sendDataResponsePromise != nil {
+          ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync called while another operation is awaiting response.")
+          promise.reject("CONCURRENT_OPERATION", "Another send-and-await operation (e.g., sendDataAsync or another sendDataAndAwaitFrameAsync) is already in progress.")
+          return
+      }
+      
+      self.sendDataResponsePromise = promise // Assign the current promise to the shared property
+      ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync: Sending data: \(hexDataString, privacy: .public), awaiting framed response.")
+
+      port.send(dataToSend) { [weak self] in
+          // This callback from port.send merely indicates the SDK has accepted the data.
+          // The actual device response will be processed by handleFrame.
+          guard let self = self else { 
+              ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync: port.send completion block (self is nil).")
+              return
+          }
+          ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync: port.send completion block executed (data handed to SDK).")
+      }
+
+      // Cancel any pre-existing timer before starting a new one for this operation.
+      self.sendDataResponseTimer?.cancel()
+
+      // Set up a timeout for the response
+      let workItem = DispatchWorkItem { [weak self] in
+          guard let self = self else { return }
+          // Check if the promise stored is still the one this timeout was for.
+          // This is important if multiple calls could potentially race to set up timeouts,
+          // though the sendDataResponsePromise check above should prevent that.
+          if let promiseToReject = self.sendDataResponsePromise, (promiseToReject as AnyObject) === (promise as AnyObject) {
+              ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync response timed out for its specific promise.")
+              promiseToReject.reject("RESPONSE_TIMEOUT", "Timeout waiting for framed response from device for sendDataAndAwaitFrameAsync.")
+              self.sendDataResponsePromise = nil // Clear the shared promise
+              self.sendDataResponseTimer = nil // Clear the timer item itself
+          } else if self.sendDataResponsePromise != nil {
+              // This case means the timeout fired, but sendDataResponsePromise has since been changed (e.g., resolved or taken by another op that completed very fast)
+              // or cleared by a successful response. The current workItem is stale.
+              ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync timeout triggered, but the active sendDataResponsePromise is different or was already cleared.")
+          } else {
+              // sendDataResponsePromise is nil, meaning it was likely resolved and cleared.
+              ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: sendDataAndAwaitFrameAsync timeout triggered, but no promise was pending. Likely resolved.")
+          }
+      }
+      self.sendDataResponseTimer = workItem
+      // Using a 5-second timeout. This can be adjusted as necessary.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 5.0, execute: workItem)
     }
 
     OnDestroy {
@@ -158,6 +239,15 @@ public class ExpoRedparkSerialModule: Module {
       NotificationCenter.default.removeObserver(self)
       RedSerialDeviceManager.shared().delegate = nil
       redSerialPort?.delegate = nil
+
+      // Clean up pending promise and timer
+      self.sendDataResponseTimer?.cancel()
+      self.sendDataResponseTimer = nil
+      if let promise = self.sendDataResponsePromise {
+          promise.reject("MODULE_DESTROYED", "The module was destroyed before a response was received.")
+          self.sendDataResponsePromise = nil
+      }
+
       ExpoRedparkSerialModule.log.error("ExpoRedparkSerial: Module destroyed and cleaned up.")
     }
   }
@@ -324,9 +414,25 @@ public class ExpoRedparkSerialModule: Module {
   private func handleFrame(port: RedSerialPort, payload: [UInt8], isValid: Bool) {
     port.send(Data([isValid ? Frame.ACK : Frame.NAK])) { }
 
-    guard isValid else { return }
+    guard isValid else {
+        ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: Invalid frame received. Discarding.")
+        // We are not rejecting the sendDataResponsePromise here on an invalid frame.
+        // It will either be resolved by a subsequent valid frame or timeout.
+        return
+    }
     let hex = payload.map { String(format: "%02X", $0) }.joined()
-    sendEvent("onDataReceived", ["data": hex])
+    ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: Valid frame processed. Payload: \(hex, privacy: .public)")
+
+    if let promise = self.sendDataResponsePromise {
+        ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: Resolving pending sendDataAsync promise with received data.")
+        self.sendDataResponseTimer?.cancel() // Cancel the timeout
+        self.sendDataResponseTimer = nil
+        promise.resolve(hex)
+        self.sendDataResponsePromise = nil // Clear the promise once resolved
+    } else {
+        ExpoRedparkSerialModule.log.warning("ExpoRedparkSerial: No pending sendDataAsync promise. Emitting onDataReceived event.")
+        sendEvent("onDataReceived", ["data": hex])
+    }
   }
 
   private func dataFromHexString(_ hexString: String) -> Data? {
