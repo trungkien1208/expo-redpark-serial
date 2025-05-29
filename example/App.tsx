@@ -8,6 +8,7 @@
   export default function App() {
     const [isCableConnected, setIsCableConnected] = useState(false);
     const dataOnCableStatusChanged = useEvent(ExpoRedparkSerial, 'onCableStatusChanged');
+    const dataOnTransactionProgress = useEvent(ExpoRedparkSerial, 'onTransactionProgress');
     const [receivedData, setReceivedData] = useState(''); 
     const [terminalStatus, setTerminalStatus] = useState(false);
     const [messageSent, setMessageSent] = useState('');
@@ -72,10 +73,19 @@
             </Text>
           </Group>
           <Group name="Terminal Status">
+            
             <Text style={{ fontSize: 20, marginBottom: 20 }}>Status:
               <Text style={{ fontSize: 20, marginBottom: 20, color: terminalStatus ? 'green' : 'red', fontWeight: 'bold' }}>{terminalStatus ? 'Connected' : 'Disconnected'}</Text>
             </Text>
             <Button title="Check Status" onPress={checkStatus} />
+          </Group>
+
+          <Group name="Transaction Progress">
+    
+            <Text style={{ fontSize: 20, marginBottom: 20 }}>
+              {JSON.stringify(dataOnTransactionProgress)}
+            </Text>
+            
           </Group>
           <Group name="Generate Message">
             <TextInput
