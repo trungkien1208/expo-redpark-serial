@@ -241,6 +241,11 @@ const CARD_SETTLEMENT_TRANSACTION: ICardSettlementTransaction = {
   VERSION_CODE: "01",
 };
 
+const CHECK_STATUS_TRANSACTION = {
+  FUNCTION_CODE: "I1",
+  VERSION_CODE: "01",
+};
+
 // const EXAMPLE_TRANSACTION: IExampleTransaction = {
 //   ECN: "A1234567890B",
 //   FUNCTION_CODE: "CC",
@@ -644,4 +649,19 @@ export const checkTransactionStatusSuccess = (data: string) => {
     return true;
   }
   return false;
+};
+
+
+export const checkStatusMessage = (): string => {
+  const ecn = generateECNBaseonDateTime();
+  const functionCode = CHECK_STATUS_TRANSACTION.FUNCTION_CODE;
+  const versionCode = CHECK_STATUS_TRANSACTION.VERSION_CODE;
+
+  const header = getMessageHeader({
+    ecn,
+    functionCode,
+    responseCode: versionCode,
+    rfu: DEFAULT_RESPONSE_TRANSACTION.RFU,
+  });
+  return getResponseMessage({ header, data: [] });
 };

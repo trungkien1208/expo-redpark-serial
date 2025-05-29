@@ -28,6 +28,9 @@ export interface ExpoRedparkSerialNativeModule {
   sendDataAsync: (hexDataString: string) => Promise<boolean>;
   sendDataAndAwaitFrameAsync: (hexDataString: string) => Promise<string>;
   manualStartDiscovery: () => Promise<boolean>;
+  setTransactionResponseTimeout: (timeoutSeconds: number) => Promise<boolean>;
+  cancelPendingTransaction: () => Promise<boolean>;
+  isTransactionInProgress: () => Promise<boolean>;
   // Add other functions here if you re-add them to the Swift module, e.g.:
   // setBaudRate: (baudRate: number) => Promise<boolean>;
 }

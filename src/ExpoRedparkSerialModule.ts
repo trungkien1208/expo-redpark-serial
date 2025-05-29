@@ -14,6 +14,9 @@ declare class ExpoRedparkSerialModule extends NativeModule<ExpoRedparkSerialModu
   manualStartDiscovery(): Promise<boolean>;
   isCableConnected(): Promise<boolean>;
   sendDataAsync(hexDataString: string): Promise<boolean>;
+  setTransactionResponseTimeout(timeoutSeconds: number): Promise<boolean>;
+  cancelPendingTransaction(): Promise<boolean>;
+  isTransactionInProgress(): Promise<boolean>;
 }
 
 

@@ -2,13 +2,14 @@
   import { useEffect, useState } from 'react';
   import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from 'react-native';
   import ExpoRedparkSerial from 'expo-redpark-serial';
-  import { decodeTerminalResponseHex, getNETSPurchaseMessage } from './NetsTerminal.services';
+  import { checkStatusMessage, decodeTerminalResponseHex, getNETSPurchaseMessage } from './NetsTerminal.services';
 
 
   export default function App() {
     const [isCableConnected, setIsCableConnected] = useState(false);
     const dataOnCableStatusChanged = useEvent(ExpoRedparkSerial, 'onCableStatusChanged');
-    const [receivedData, setReceivedData] = useState('');
+    const [receivedData, setReceivedData] = useState(''); 
+    const [terminalStatus, setTerminalStatus] = useState(false);
     const [messageSent, setMessageSent] = useState('');
     const handleCableConnected = () => {
       setIsCableConnected(true);
@@ -25,6 +26,16 @@
         setReceivedData(result);
       } catch (error) {
         console.error('Send data error:', error);
+      }
+    };
+
+    const checkStatus = async () => {
+      try {
+        const result = await ExpoRedparkSerial.sendDataAndAwaitFrameAsync(checkStatusMessage());
+        console.log('Check status result:', result);
+        setTerminalStatus(!!result);
+      } catch (error) {
+        console.error('Check status error:', error);
       }
     };
 
@@ -59,6 +70,12 @@
             <Text style={{ fontSize: 20, marginBottom: 20 }}>Status:
               <Text style={{ fontSize: 20, marginBottom: 20, color: isCableConnected ? 'green' : 'red', fontWeight: 'bold' }}>{isCableConnected ? 'Connected' : 'Disconnected'}</Text>
             </Text>
+          </Group>
+          <Group name="Terminal Status">
+            <Text style={{ fontSize: 20, marginBottom: 20 }}>Status:
+              <Text style={{ fontSize: 20, marginBottom: 20, color: terminalStatus ? 'green' : 'red', fontWeight: 'bold' }}>{terminalStatus ? 'Connected' : 'Disconnected'}</Text>
+            </Text>
+            <Button title="Check Status" onPress={checkStatus} />
           </Group>
           <Group name="Generate Message">
             <TextInput
